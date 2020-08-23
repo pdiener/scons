@@ -95,28 +95,50 @@ class FortranScannerSubmodulesTestCase(unittest.TestCase):
         env = DummyEnvironment([test.workpath('modules')])
         env['FORTRANMODDIR'] = 'modules'
         env['FORTRANMODSUFFIX'] = '.mod'
+        env['FORTRANSUBMODSUFFIX'] = '.smod'
         emitter = SCons.Tool.FortranCommon._fortranEmitter
         # path = s.path(env)
+        FileTargetLists=dict()
+
+        TargetList=list()
+        TargetList.append("test_1.mod")
+        TargetList.append("test_1@test_1_impl.smod")
+        FileTargetLists["test_1.f90"]=TargetList
+
+        TargetList=list()
+        TargetList.append("test_2.mod")
+        TargetList.append("test_2@test_2_impl.smod")
+        FileTargetLists["test_2.f90"]=TargetList
+
+        del TargetList
 
         for fort in ['test_1.f90', 'test_2.f90']:
             file_base, _ = os.path.splitext(fort)
             file_mod = '%s.mod' % file_base
+            TargetList=FileTargetLists[fort]
             f = env.File(fort)
             (target, source) = emitter([], [f, ], env)
 
             # print("Targets:%s\nSources:%s"%([str(a) for a in target], [str(a) for a in source]))
 
-            # should only be 1 target and 1 source
-            self.assertEqual(len(target), 1,
-                             msg="More than 1 target: %d [%s]" % (len(target), [str(t) for t in target]))
+            # the comment "should only be 1 target and 1 source" used to be
+            # here, which, while not compliant with the fortran standard,
+            # was at least true for the files associated with this test
+            # as long as submodules were not being handled . . .
+            #
+            # rewired this check (and some others below) for the multiple
+            # target case
+            NumTargets=len(TargetList)
+            self.assertEqual(len(target),  NumTargets,
+                             msg="More than %d target: %d [%s]" % (NumTargets,len(target), [str(t) for t in target]))
             self.assertEqual(len(source), 1,
                              msg="More than 1 source: %d [%s]" % (len(source), [str(t) for t in source]))
 
-            # target should be file_base.mod
-            self.assertEqual(str(target[0]).endswith(file_mod), True,
-                             msg="Target[0]=%s doesn't end with '%s'" % (str(target[0]), file_mod))
-
-            # source should be file_base .f90
+            # target should be in the associated dependency list
+            for t in target:
+                self.assertEqual(any(str(t).endswith(tl) for tl in TargetList), True,
+                                 msg="target=\"%s\" doesn't end with any of '%s'" % (str(t),TargetList))
+            # source should be file_base.f90
             self.assertEqual(str(source[0]).endswith(fort), True,
                              msg="Source[0]=%s doesn't end with '%s'" % (str(source[0]), fort))
 
